@@ -1,7 +1,9 @@
+# handlers/start.py
 from aiogram import Router, html, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+
 from utils.logger import get_logger
 from keyboards.start_menu import get_main_menu_keyboard
 

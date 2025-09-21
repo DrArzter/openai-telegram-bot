@@ -1,7 +1,10 @@
+# handlers/random.py
 from aiogram import Router, html, F
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+
+from keyboards.random_fact import get_random_fact_actions_keyboard
 from utils.logger import get_logger
 from services.openai_client import openai_client
 
@@ -50,4 +53,6 @@ async def get_random_fact_handler(
     except Exception as e:
         logger.error(f"Error generating random fact: {e}")
         response = "⚠️ An error occurred while generating a random fact."
-    await status_message.edit_text(f"📜 {response}")
+    await status_message.edit_text(
+        f"📜 {response}", reply_markup=get_random_fact_actions_keyboard()
+    )
