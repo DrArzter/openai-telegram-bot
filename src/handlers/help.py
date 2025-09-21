@@ -11,10 +11,18 @@ router = Router()
 logger = get_logger(__name__)
 
 HELP_TEXT = (
-    "<b>ChatGPT Bot Help</b>\n\n"
-    "🔹 <b> Available commands:</b>\n"
+    "<b>🤖 ChatGPT Bot Help</b>\n\n"
+    "🔹<b> Available commands:</b>\n"
     "/start - Start the bot and show main menu\n"
     "/help - Show this help message\n"
+    "/random - Get a random fact\n"
+    "/gpt - Ask ChatGPT directly\n"
+    "\n"
+    "💡 <b>How to use:</b>\n"
+    "Use the menu buttons for easy navigation or type commands directly.\n\n"
+    "🎯 <b>Features:</b>\n"
+    "• Get random facts from ChatGPT\n"
+    "• Ask any question directly\n"
 )
 
 
