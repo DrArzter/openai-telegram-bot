@@ -31,7 +31,7 @@ include_middlewares(dp)
 async def on_startup(bot: Bot) -> None:
     """Actions to perform on bot startup."""
     logger.info("Bot is starting up...")
-    create_tables()
+    await create_tables()
     await set_commands(bot)
     # commands = await bot.get_my_commands()
     # logger.info(f"Bot commands: {commands}")

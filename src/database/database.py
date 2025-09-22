@@ -1,38 +1,37 @@
 # database/database.py
-from sqlalchemy import create_engine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from database.models import Base
 from utils.logger import get_logger
+from dotenv import load_dotenv
 import os
 
 logger = get_logger(__name__)
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./chatgpt_bot.db")
+load_dotenv()
 
-engine = create_engine(
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL is None:
+    raise ValueError("DATABASE_URL environment variable is not set")
+
+engine = create_async_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+    echo=True,
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+AsyncSessionLocal = sessionmaker(
+    bind=engine, class_=AsyncSession, expire_on_commit=False
+)
 
-def create_tables():
-    """Create all tables in the database."""
-    try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created successfully")
-    except Exception as e:
-        logger.error(f"Error creating database tables: {e}")
-        raise
 
-def get_db():
-    """Get database session."""
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def create_tables():
+    """Create all tables in the database asynchronously."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables created successfully")
 
-def get_db_sync():
-    """Get database session for synchronous operations."""
-    return SessionLocal()
+
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session
