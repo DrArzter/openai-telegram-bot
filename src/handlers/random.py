@@ -30,7 +30,9 @@ async def command_random_handler(message: Message) -> None:
     except Exception as e:
         logger.error(f"Error generating random fact: {e}")
         response = "⚠️ An error occurred while generating a random fact."
-    await status_message.edit_text(f"📜 {response}")
+    await status_message.edit_text(
+        f"📜 {response}", reply_markup=get_random_fact_actions_keyboard()
+    )
 
 
 @router.callback_query(F.data == "get_random_fact")
