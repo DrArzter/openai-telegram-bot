@@ -5,6 +5,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
+from database.database import create_tables
 from middlewares import include_middlewares
 from handlers import include_routers
 from utils.set_commands import set_commands
@@ -30,6 +31,7 @@ include_middlewares(dp)
 async def on_startup(bot: Bot) -> None:
     """Actions to perform on bot startup."""
     logger.info("Bot is starting up...")
+    create_tables()
     await set_commands(bot)
     # commands = await bot.get_my_commands()
     # logger.info(f"Bot commands: {commands}")
