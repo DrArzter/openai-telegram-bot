@@ -3,3 +3,4 @@
 .venv/
 conversations.json
 user_stats.json
+quiz_results.json

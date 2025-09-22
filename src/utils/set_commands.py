@@ -16,6 +16,7 @@ async def set_commands(bot: Bot) -> None:
         BotCommand(command="/gpt", description="🤖 Ask ChatGPT directly"),
         BotCommand(command="/random", description="🎲 Get a random fact"),
         BotCommand(command="/talk", description="💬 Talk to Famous Personalities"),
+        BotCommand(command="/quiz", description="🎯 Take a Quiz"),
     ]
 
     await bot.set_my_commands(commands)

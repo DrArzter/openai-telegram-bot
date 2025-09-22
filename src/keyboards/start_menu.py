@@ -11,6 +11,7 @@ def get_main_menu_keyboard():
         ],
         [InlineKeyboardButton(text="🤖 Ask ChatGPT", callback_data="start_gpt")],
         [InlineKeyboardButton(text="💬 Talk", callback_data="choose_personality")],
+        [InlineKeyboardButton(text="🎯 Quiz", callback_data="quiz")],
         [InlineKeyboardButton(text="❓ Help", callback_data="help")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
