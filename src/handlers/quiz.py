@@ -134,7 +134,13 @@ async def continue_quiz(callback: CallbackQuery, state: FSMContext) -> None:
         messages.append(
             {
                 "role": "system",
-                "content": f"You are a helpful assistant. You have to play a quiz with the user. Your task is to give user a quiz question on topic: {topic}. Try not to ask the same question for the same topic. Do not ask if you should ask another question.",
+                "content": (
+                    "You are a helpful assistant."
+                    "You have to play a quiz with the user."
+                    f"Your task is to give user a quiz question on topic: {topic}."
+                    "Try not to ask the same question for the same topic."
+                    "Do not ask if you should ask another question."
+                ),
             }
         )
         for message in conversation_history:
