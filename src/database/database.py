@@ -17,7 +17,7 @@ if DATABASE_URL is None:
 
 engine = create_async_engine(
     DATABASE_URL,
-    echo=True,
+    echo=False,
 )
 
 AsyncSessionLocal: sessionmaker[AsyncSession] = sessionmaker(
