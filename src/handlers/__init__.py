@@ -1,46 +1,33 @@
 # handlers/__init__.py
-from typing import Optional
 from aiogram import Dispatcher
-import importlib
 from pathlib import Path
+from typing import Optional, List
 from utils.logger import get_logger
+from utils.module_loader import discover_modules
 
 logger = get_logger(__name__)
 
 
 def include_routers(
-    dp: Dispatcher, path: Optional[Path] = None, package: Optional[str] = None
+    dp: Dispatcher,
+    exclude: Optional[List[str]] = None,
+    only_include: Optional[List[str]] = None,
 ) -> None:
     """
-    Recursively includes all routers from a handlers directory and its subdirectories.
-
-    :param dp: Dispatcher instance to register routers.
-    :param path: Path to the current folder (used internally for recursion).
-    :param package: Package name for importlib (used internally for recursion).
+    Discovers and registers all routers with priority, exclusion, and inclusion logic.
     """
-    if path is None:
-        path = Path(__file__).parent
-    if package is None:
-        package = __name__
+    discovered_routers = discover_modules(
+        package_path=Path(__file__).parent,
+        package_name=__name__,
+        export_name="router",
+        exclude=exclude,
+        only_include=only_include,
+    )
 
-    for item in path.iterdir():
-        if item.is_dir() and (item / "__init__.py").exists():
-            # Recurse into subpackage
-            subpackage = f"{package}.{item.name}"
-            include_routers(dp, path=item, package=subpackage)
-        elif item.is_file() and item.suffix == ".py" and item.name != "__init__.py":
-            module_name = item.stem
-            try:
-                module = importlib.import_module(f".{module_name}", package=package)
-                router = getattr(module, "router", None)
-                if router is not None:
-                    dp.include_router(router)  # type: ignore
-                    logger.info(
-                        f"Router from {package}.{module_name} included successfully"
-                    )
-            except ModuleNotFoundError as e:
-                logger.error(f"Module not found: {package}.{module_name} - {e}")
-            except Exception as e:
-                logger.exception(
-                    f"Failed to include router from {package}.{module_name}: {e}"
-                )
+    discovered_routers.sort(key=lambda item: item["priority"])
+
+    for router_info in discovered_routers:
+        dp.include_router(router_info["export"])
+        logger.info(
+            f"Router from {router_info['package']}.{router_info['name']} included successfully (priority: {router_info['priority']})"
+        )
