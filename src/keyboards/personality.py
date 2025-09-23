@@ -47,13 +47,11 @@ def get_personality_actions_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text="❌ End conversation",
                 callback_data=PersonalityCallbackFactory(action="end_chat").pack(),
-            )
-        ],
-        [
+            ),
             InlineKeyboardButton(
                 text="🏠 Main menu",
                 callback_data=StartCallbackFactory(action="main_menu").pack(),
-            )
+            ),
         ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

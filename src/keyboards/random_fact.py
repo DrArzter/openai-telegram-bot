@@ -10,9 +10,7 @@ def get_random_fact_actions_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text="🎲 Another fact",
                 callback_data=RandomCallbackFactory(action="get_fact").pack(),
-            )
-        ],
-        [
+            ),
             InlineKeyboardButton(
                 text="🏠 Main menu",
                 callback_data=StartCallbackFactory(action="main_menu").pack(),

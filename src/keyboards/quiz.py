@@ -59,13 +59,11 @@ def get_quiz_confirmation_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text="🔄 Choose another topic",
                 callback_data=QuizCallbackFactory(action="choose_another_topic").pack(),
-            )
-        ],
-        [
+            ),
             InlineKeyboardButton(
                 text="✅ Start quiz",
                 callback_data=QuizCallbackFactory(action="continue").pack(),
-            )
+            ),
         ],
         [
             InlineKeyboardButton(
@@ -83,9 +81,7 @@ def get_answer_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text="🔄 Choose another topic",
                 callback_data=QuizCallbackFactory(action="choose_another_topic").pack(),
-            )
-        ],
-        [
+            ),
             InlineKeyboardButton(
                 text="❌ Cancel",
                 callback_data=QuizCallbackFactory(action="cancel").pack(),
