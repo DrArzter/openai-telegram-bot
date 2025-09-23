@@ -33,5 +33,8 @@ async def create_tables():
 
 
 async def get_db():
-    async with AsyncSessionLocal() as session:
+    session = AsyncSessionLocal()
+    try:
         yield session
+    finally:
+        session.close()
