@@ -1,32 +1,35 @@
 # keyboards/personality.py
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from lexicon.prompts import PERSONALITY_NAMES
+from callbacks.factories import PersonalityCallbackFactory, StartCallbackFactory
 
 
 def get_personality_selection_keyboard() -> InlineKeyboardMarkup:
     """
     Keyboard for selecting personalities.
     """
-    keyboard = [
-        [
+    builder = InlineKeyboardBuilder()
+
+    for key, name in PERSONALITY_NAMES.items():
+        builder.row(
             InlineKeyboardButton(
-                text="🧠 Einstein", callback_data="personality:einstein"
+                text=name,
+                callback_data=PersonalityCallbackFactory(
+                    action="select", key=key
+                ).pack(),
             )
-        ],
-        [
-            InlineKeyboardButton(
-                text="🎭 Shakespeare", callback_data="personality:shakespeare"
-            )
-        ],
-        [InlineKeyboardButton(text="💡 Steve Jobs", callback_data="personality:jobs")],
-        [
-            InlineKeyboardButton(
-                text="🎨 Leonardo da Vinci", callback_data="personality:leonardo"
-            )
-        ],
-        [InlineKeyboardButton(text="🏛️ Socrates", callback_data="personality:socrates")],
-        [InlineKeyboardButton(text="🏠 Main menu", callback_data="main_menu")],
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+        )
+
+    builder.row(
+        InlineKeyboardButton(
+            text="🏠 Main menu",
+            callback_data=StartCallbackFactory(action="main_menu").pack(),
+        )
+    )
+
+    return builder.as_markup()
 
 
 def get_personality_actions_keyboard() -> InlineKeyboardMarkup:
@@ -36,14 +39,21 @@ def get_personality_actions_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton(
-                text="🔄 Change personality", callback_data="change_personality"
+                text="🔄 Change personality",
+                callback_data=PersonalityCallbackFactory(action="change").pack(),
             )
         ],
         [
             InlineKeyboardButton(
-                text="❌ End conversation", callback_data="end_personality_chat"
+                text="❌ End conversation",
+                callback_data=PersonalityCallbackFactory(action="end_chat").pack(),
             )
         ],
-        [InlineKeyboardButton(text="🏠 Main menu", callback_data="main_menu")],
+        [
+            InlineKeyboardButton(
+                text="🏠 Main menu",
+                callback_data=StartCallbackFactory(action="main_menu").pack(),
+            )
+        ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

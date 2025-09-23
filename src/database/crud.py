@@ -1,8 +1,9 @@
 # database/crud.py
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import delete
 from database.models import (
-    User,
+    User as DBUser,
     Conversation,
     QuizResult,
     TranslationHistory,
@@ -17,14 +18,17 @@ logger = get_logger(__name__)
 
 async def get_or_create_user(
     db: AsyncSession, telegram_id: int, username: Optional[str] = None
-) -> User:
+) -> DBUser:
     """Get user by telegram_id or create new one."""
+    # Эта функция остается основной для мидлвэйра
     try:
-        result = await db.execute(select(User).where(User.telegram_id == telegram_id))
+        result = await db.execute(
+            select(DBUser).where(DBUser.telegram_id == telegram_id)
+        )
         user = result.scalar_one_or_none()
 
         if not user:
-            user = User(telegram_id=telegram_id, username=username)
+            user = DBUser(telegram_id=telegram_id, username=username)
             db.add(user)
             await db.commit()
             await db.refresh(user)
@@ -37,16 +41,15 @@ async def get_or_create_user(
 
 
 async def update_user_stats(
-    db: AsyncSession, telegram_id: int, stat_field: str, increment: int = 1
+    db: AsyncSession, user: DBUser, stat_field: str, increment: int = 1
 ) -> bool:
     """Update user statistics."""
+    # Уже обновлено, все отлично
     try:
-        user = await get_or_create_user(db, telegram_id)
-
         if hasattr(user, stat_field):
             current_value = getattr(user, stat_field, 0)
             setattr(user, stat_field, current_value + increment)
-            user.last_activity = datetime.now(timezone.utc)  # type: ignore
+            user.last_activity = datetime.now(timezone.utc)
             await db.commit()
             await db.refresh(user)
             return True
@@ -59,25 +62,24 @@ async def update_user_stats(
         return False
 
 
-async def get_user_stats(db: AsyncSession, telegram_id: int) -> Optional[User]:
-    """Get user statistics asynchronously."""
-    result = await db.execute(select(User).where(User.telegram_id == telegram_id))
-    user = result.scalar_one_or_none()
-    return user
+async def get_user_stats(db: AsyncSession, telegram_id: int) -> Optional[DBUser]:
+    """Get user statistics by telegram_id asynchronously."""
+    # Эта функция полезна для админки, оставляем как есть
+    result = await db.execute(select(DBUser).where(DBUser.telegram_id == telegram_id))
+    return result.scalar_one_or_none()
 
 
 async def save_conversation_message(
     db: AsyncSession,
-    telegram_id: int,
+    user: DBUser,
     role: str,
     content: str,
     conversation_type: str,
     persona: Optional[str] = None,
 ) -> bool:
     """Save conversation message asynchronously."""
+    # Уже обновлено, все отлично
     try:
-        user = await get_or_create_user(db, telegram_id)
-
         conversation = Conversation(
             user_id=user.id,
             role=role,
@@ -85,7 +87,6 @@ async def save_conversation_message(
             conversation_type=conversation_type,
             persona=persona,
         )
-
         db.add(conversation)
         await db.commit()
         await db.refresh(conversation)
@@ -96,19 +97,11 @@ async def save_conversation_message(
         return False
 
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete, select
-from typing import List
-from database.models import Conversation
-from .crud import get_or_create_user
-
-
 async def get_conversation_history(
-    db: AsyncSession, telegram_id: int, conversation_type: str, limit: int = 10
+    db: AsyncSession, user: DBUser, conversation_type: str, limit: int = 10
 ) -> List[Conversation]:
     """Get conversation history asynchronously."""
-    user = await get_or_create_user(db, telegram_id)
-
+    # --- ИЗМЕНЕНИЕ: Принимаем user вместо telegram_id ---
     result = await db.execute(
         select(Conversation)
         .where(Conversation.user_id == user.id)
@@ -121,12 +114,11 @@ async def get_conversation_history(
 
 
 async def clear_conversation_history(
-    db: AsyncSession, telegram_id: int, conversation_type: str
+    db: AsyncSession, user: DBUser, conversation_type: str
 ) -> bool:
     """Clear conversation history asynchronously."""
+    # --- ИЗМЕНЕНИЕ: Принимаем user вместо telegram_id ---
     try:
-        user = await get_or_create_user(db, telegram_id)
-
         await db.execute(
             delete(Conversation).where(
                 Conversation.user_id == user.id,
@@ -143,19 +135,17 @@ async def clear_conversation_history(
 
 async def save_quiz_result(
     db: AsyncSession,
-    telegram_id: int,
+    user: DBUser,
     topic: str,
     correct_answers: int,
     total_questions: int,
 ) -> bool:
     """Save quiz result asynchronously."""
+    # --- ИЗМЕНЕНИЕ: Принимаем user и обновляем его статистику напрямую ---
     try:
-        user = await get_or_create_user(db, telegram_id)
-
         score_percentage = (
             (correct_answers / total_questions) * 100 if total_questions > 0 else 0
         )
-
         quiz_result = QuizResult(
             user_id=user.id,
             topic=topic,
@@ -163,13 +153,7 @@ async def save_quiz_result(
             total_questions=total_questions,
             score_percentage=score_percentage,
         )
-
         db.add(quiz_result)
-
-        # Update user stats
-        user.quizzes_completed += 1  # type: ignore
-        user.last_activity = datetime.now(timezone.utc)  # type: ignore
-
         await db.commit()
         await db.refresh(quiz_result)
         return True
@@ -180,11 +164,9 @@ async def save_quiz_result(
 
 
 async def get_quiz_stats(
-    db: AsyncSession, telegram_id: int, topic: Optional[str] = None
+    db: AsyncSession, user: DBUser, topic: Optional[str] = None
 ) -> dict:
     """Get quiz statistics asynchronously."""
-    user = await get_or_create_user(db, telegram_id)
-
     stmt = select(QuizResult).where(QuizResult.user_id == user.id)
     if topic:
         stmt = stmt.where(QuizResult.topic == topic)
@@ -217,7 +199,7 @@ async def get_quiz_stats(
 
 async def save_translation(
     db: AsyncSession,
-    telegram_id: int,
+    user: DBUser,
     original_text: str,
     translated_text: str,
     target_language: str,
@@ -225,8 +207,6 @@ async def save_translation(
 ) -> bool:
     """Save translation history asynchronously."""
     try:
-        user = await get_or_create_user(db, telegram_id)
-
         translation = TranslationHistory(
             user_id=user.id,
             original_text=original_text,
@@ -237,7 +217,6 @@ async def save_translation(
 
         db.add(translation)
 
-        # Update user stats
         user.translations_made += 1  # type: ignore
         user.last_activity = datetime.now(timezone.utc)  # type: ignore
 
@@ -251,12 +230,10 @@ async def save_translation(
 
 
 async def add_vocabulary_word(
-    db: AsyncSession, telegram_id: int, word: str, translation: str, language: str
+    db: AsyncSession, user: DBUser, word: str, translation: str, language: str
 ) -> bool:
     """Add word to vocabulary asynchronously."""
     try:
-        user = await get_or_create_user(db, telegram_id)
-
         result = await db.execute(
             select(VocabularyWord).where(
                 VocabularyWord.user_id == user.id,

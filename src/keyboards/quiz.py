@@ -1,5 +1,8 @@
 # keyboards/quiz.py
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from callbacks.factories import QuizCallbackFactory
 
 QUIZ_TOPICS = {
     "science": {
@@ -37,41 +40,57 @@ def get_quiz_topic_selection_keyboard() -> InlineKeyboardMarkup:
     """
     Keyboard for selecting topics in the quiz.
     """
-    keyboard = [
-        [
+    builder = InlineKeyboardBuilder()
+    for topic_key, data in QUIZ_TOPICS.items():
+        builder.row(
             InlineKeyboardButton(
                 text=data["name"],
-                callback_data=f"quiz_topic:{topic}",
+                callback_data=QuizCallbackFactory(
+                    action="select_topic", topic_key=topic_key
+                ).pack(),
             )
-        ]
-        for topic, data in QUIZ_TOPICS.items()
-        if data["name"] and data["description"]
-    ]
-
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+        )
+    return builder.as_markup()
 
 
 def get_quiz_confirmation_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton(
-                text="🔄 Choose another topic", callback_data="quiz:choose_topic"
+                text="🔄 Choose another topic",
+                callback_data=QuizCallbackFactory(action="choose_another_topic").pack(),
             )
         ],
-        [InlineKeyboardButton(text="✅ Start quiz", callback_data="quiz:continue")],
-        [InlineKeyboardButton(text="❌ Cancel", callback_data="quiz:cancel")],
+        [
+            InlineKeyboardButton(
+                text="✅ Start quiz",
+                callback_data=QuizCallbackFactory(action="continue").pack(),
+            )
+        ],
+        [
+            InlineKeyboardButton(
+                text="❌ Cancel",
+                callback_data=QuizCallbackFactory(action="cancel").pack(),
+            )
+        ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
 
-def qet_answer_keyboard() -> InlineKeyboardMarkup:
+def get_answer_keyboard() -> InlineKeyboardMarkup:
     keyboard = [
         [
             InlineKeyboardButton(
-                text="🔄 Choose another topic", callback_data="quiz:choose_topic"
+                text="🔄 Choose another topic",
+                callback_data=QuizCallbackFactory(action="choose_another_topic").pack(),
             )
         ],
-        [InlineKeyboardButton(text="❌ Cancel", callback_data="quiz:cancel")],
+        [
+            InlineKeyboardButton(
+                text="❌ Cancel",
+                callback_data=QuizCallbackFactory(action="cancel").pack(),
+            )
+        ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -80,15 +99,22 @@ def get_post_answer_keyboard() -> InlineKeyboardMarkup:
     """
     Keyboard for post-quiz actions.
     """
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="➡️ Continue", callback_data="quiz:continue"),
-                InlineKeyboardButton(
-                    text="🔄 Choose another topic", callback_data="quiz:choose_topic"
-                ),
-            ],
-            [InlineKeyboardButton(text="🏠 To main menu", callback_data="quiz:cancel")],
-        ]
-    )
-    return keyboard
+    keyboard = [
+        [
+            InlineKeyboardButton(
+                text="➡️ Continue",
+                callback_data=QuizCallbackFactory(action="continue").pack(),
+            ),
+            InlineKeyboardButton(
+                text="🔄 Choose another topic",
+                callback_data=QuizCallbackFactory(action="choose_another_topic").pack(),
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="🏠 To main menu",
+                callback_data=QuizCallbackFactory(action="cancel").pack(),
+            )
+        ],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)

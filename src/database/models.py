@@ -1,8 +1,7 @@
 # database/models.py
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Float
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from datetime import datetime
+from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.sql import func
 
 Base = declarative_base()
 
@@ -21,10 +20,13 @@ class User(Base):
     personality_chats = Column(Integer, default=0)
     quizzes_completed = Column(Integer, default=0)
     translations_made = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    last_activity = Column(DateTime, default=datetime.utcnow)
+    image_descriptions_generated = Column(Integer, default=0)
 
-    # Relationships
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_activity = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
     conversations = relationship("Conversation", back_populates="user")
     quiz_results = relationship("QuizResult", back_populates="user")
 
@@ -36,13 +38,12 @@ class Conversation(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    role = Column(String(50), nullable=False)  # user, assistant, system
+    role = Column(String(50), nullable=False)
     content = Column(Text, nullable=False)
-    conversation_type = Column(
-        String(100), nullable=False
-    )  # gpt_interface, personality_einstein, quiz, etc.
+    conversation_type = Column(String(100), nullable=False)
     persona = Column(String(100), nullable=True)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="conversations")
 
@@ -58,7 +59,8 @@ class QuizResult(Base):
     correct_answers = Column(Integer, nullable=False)
     total_questions = Column(Integer, nullable=False)
     score_percentage = Column(Float, nullable=False)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="quiz_results")
 
@@ -74,7 +76,8 @@ class TranslationHistory(Base):
     translated_text = Column(Text, nullable=False)
     source_language = Column(String(10), nullable=True)
     target_language = Column(String(10), nullable=False)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+
+    timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class VocabularyWord(Base):
@@ -89,5 +92,6 @@ class VocabularyWord(Base):
     language = Column(String(10), nullable=False)
     times_practiced = Column(Integer, default=0)
     times_correct = Column(Integer, default=0)
-    learned_at = Column(DateTime, default=datetime.utcnow)
-    last_practiced = Column(DateTime, nullable=True)
+
+    learned_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_practiced = Column(DateTime(timezone=True), nullable=True)

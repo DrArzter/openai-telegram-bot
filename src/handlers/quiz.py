@@ -1,8 +1,10 @@
 # handlers/quiz.py
 from aiogram import Router, F
 from aiogram.filters import Command
+from aiogram.filters.callback_data import CallbackData
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from keyboards.start_menu import get_main_menu_keyboard
 from states.bot_states import QuizStates
@@ -12,282 +14,197 @@ from keyboards.quiz import (
     get_quiz_confirmation_keyboard,
     get_quiz_topic_selection_keyboard,
     get_post_answer_keyboard,
-    QUIZ_TOPICS,
-    qet_answer_keyboard,
+    get_answer_keyboard,
 )
 from utils.logger import get_logger
-from utils.storage import (
+
+from database.crud import (
     clear_conversation_history,
     save_quiz_result,
     save_conversation_message,
     get_conversation_history,
+    update_user_stats,
 )
+from database.models import User as DbUser
+from lexicon.prompts import get_quiz_question_prompt, QUIZ_ANSWER_CHECK_PROMPT
+from lexicon.topics import QUIZ_TOPICS
+from callbacks.factories import QuizCallbackFactory
 
 router = Router()
 logger = get_logger(__name__)
 
+priority = 50
+
 
 @router.message(Command("quiz"))
-async def command_quiz_handler(message: Message, state: FSMContext) -> None:
-    """
-    Handles the /quiz command.
-    """
-
+async def command_quiz_handler(
+    message: Message, state: FSMContext, db_user: DbUser
+) -> None:
     await state.clear()
     await state.set_state(QuizStates.choosing_topic)
-
-    user_id = message.from_user.id if message.from_user else 0
-
     await message.answer(
         "<b>Quiz time!</b>\n\n" "Please, choose a topic for the quiz:",
         reply_markup=get_quiz_topic_selection_keyboard(),
     )
+    logger.info(f"User {db_user.telegram_id} started quiz")
 
-    logger.info(f"User {user_id} started quiz")
+
+@router.callback_query(QuizCallbackFactory.filter(F.action == "start"))
+async def quiz_start_callback(
+    callback: CallbackQuery, state: FSMContext, db_user: DbUser
+) -> None:
+    await callback.answer()
+    await command_quiz_handler(callback.message, state, db_user)
 
 
-@router.callback_query(F.data == "quiz")
-async def quiz_start_callback(callback: CallbackQuery, state: FSMContext) -> None:
-
+@router.callback_query(QuizCallbackFactory.filter(F.action == "select_topic"))
+async def quiz_select_topic_callback(
+    callback: CallbackQuery,
+    callback_data: QuizCallbackFactory,
+    state: FSMContext,
+    db: AsyncSession,
+    db_user: DbUser,
+) -> None:
     await callback.answer()
     await state.clear()
+    await clear_conversation_history(db, db_user, "quiz")
 
-    await command_quiz_handler(callback.message, state)
-
-
-@router.callback_query(F.data.startswith("quiz_topic:"))
-async def select_topic_callback(callback: CallbackQuery, state: FSMContext) -> None:
-
-    await callback.answer()
-    await state.clear()
-
-    user_id = callback.from_user.id if callback.from_user else 0
-
-    clear_conversation_history(user_id=user_id, conversation_type="quiz")
-
-    topic_key = callback.data.split(":")[1]
-
-    if topic_key not in QUIZ_TOPICS:
-        await callback.message.answer(
-            "⚠️ Invalid topic selected. Please choose a valid topic.",
-            reply_markup=get_quiz_topic_selection_keyboard(),
-        )
+    topic_key = callback_data.topic_key
+    if not topic_key or topic_key not in QUIZ_TOPICS:
+        await callback.message.answer("⚠️ Invalid topic selected.")
         return
 
     await state.update_data(topic=topic_key)
-
     await callback.message.answer(
         f"You have chosen the topic: {QUIZ_TOPICS[topic_key]['name']}\n\n"
-        f"Are you ready to start the quiz? Click the button below to continue:",
+        f"Are you ready to start the quiz?",
         reply_markup=get_quiz_confirmation_keyboard(),
     )
 
 
-@router.callback_query(F.data == "quiz:choose_topic")
-async def reselect_topic_callback(callback: CallbackQuery, state: FSMContext) -> None:
-    user_id = callback.from_user.id if callback.from_user else 0
+@router.callback_query(QuizCallbackFactory.filter(F.action == "choose_another_topic"))
+async def quiz_reselect_topic_callback(
+    callback: CallbackQuery, state: FSMContext, db: AsyncSession, db_user: DbUser
+) -> None:
+    await callback.answer()
     data = await state.get_data()
-
     if data.get("total_questions", 0) > 0:
-        await finish_quiz_session(user_id=user_id, state=state)
+        await finish_quiz_session(db=db, user=db_user, state=state)
 
     await state.set_state(QuizStates.choosing_topic)
-
     await callback.message.answer(
-        "Please choose another topic:",
-        reply_markup=get_quiz_topic_selection_keyboard(),
+        "Please choose another topic:", reply_markup=get_quiz_topic_selection_keyboard()
     )
 
 
-@router.callback_query(F.data == "quiz:continue")
-async def continue_quiz(callback: CallbackQuery, state: FSMContext) -> None:
-    """
-    Continues the quiz and prepares the next question.
-    """
-
+@router.callback_query(QuizCallbackFactory.filter(F.action == "continue"))
+async def quiz_continue_callback(
+    callback: CallbackQuery, state: FSMContext, db: AsyncSession, db_user: DbUser
+) -> None:
     await callback.answer()
-
     data = await state.get_data()
-    topic = data.get("topic")
-
+    topic_key = data.get("topic")
     status_message = await callback.message.answer("🤔 Thinking...")
 
-    if not topic:
-        logger.error("For some reason topic is not set in continue_quiz callback")
-        await callback.message.answer(
-            "⚠️ Invalid topic selected. Please choose a valid topic.",
-            reply_markup=get_quiz_topic_selection_keyboard(),
+    if not topic_key:
+        await status_message.edit_text(
+            "⚠️ Topic not selected. Please choose a valid topic."
         )
         return
 
-    user_id = callback.from_user.id if callback.from_user else 0
-
     try:
-        conversation_history = get_conversation_history(
-            user_id=user_id,
-            conversation_type=f"quiz",
-            limit=10,
-        )
+        history_db = await get_conversation_history(db, db_user, "quiz", 10)
+        history_openai = [
+            {"role": msg.role, "content": msg.content} for msg in history_db
+        ]
+        system_prompt = get_quiz_question_prompt(QUIZ_TOPICS[topic_key]["name"])
+        messages = [{"role": "system", "content": system_prompt}, *history_openai]
 
-        messages = []
-
-        messages.append(
-            {
-                "role": "system",
-                "content": (
-                    "You are a helpful assistant."
-                    "You have to play a quiz with the user."
-                    f"Your task is to give user a quiz question on topic: {topic}."
-                    "Try not to ask the same question for the same topic."
-                    "Do not ask if you should ask another question."
-                ),
-            }
-        )
-        for message in conversation_history:
-            messages.append({"role": message["role"], "content": message["content"]})
-
-        response = await openai_client.get_conversation_response(
-            messages=messages,
-        )
-
+        response = await openai_client.get_conversation_response(messages=messages)
         if response:
-            await status_message.edit_text(response, reply_markup=qet_answer_keyboard())
-            save_conversation_message(
-                user_id=user_id,
-                conversation_type=f"quiz",
-                role="assistant",
-                content=response,
-            )
-
+            await status_message.edit_text(response, reply_markup=get_answer_keyboard())
+            await save_conversation_message(db, db_user, "assistant", response, "quiz")
             await state.set_state(QuizStates.waiting_for_answer)
-
     except Exception as e:
-        logger.error(f"Error while getting response from OpenAI: {e}")
+        logger.error(f"Error getting response from OpenAI: {e}")
+        await status_message.edit_text(
+            "⚠️ An error occurred while generating a question."
+        )
 
 
 @router.message(QuizStates.waiting_for_answer)
-async def process_quiz_answer(message: Message, state: FSMContext) -> None:
-
-    data = await state.get_data()
-    topic = data.get("topic")
-
-    if not topic:
-        logger.error("Topic not set in process_quiz_answer")
-        await message.answer(
-            "⚠️ Invalid topic selected. Please choose a valid topic.",
-            reply_markup=get_quiz_topic_selection_keyboard(),
-        )
+async def state_quiz_process_answer_handler(
+    message: Message, state: FSMContext, db: AsyncSession, db_user: DbUser
+) -> None:
+    if not message.text:
+        await message.answer("Please provide a text answer.")
         return
 
-    user_id = message.from_user.id if message.from_user else 0
-
-    logger.info(f"User {user_id} submitted answer: {message.text}")
+    data = await state.get_data()
+    if not data.get("topic"):
+        await message.answer(
+            "⚠️ Session expired. Please start a new quiz.",
+            reply_markup=get_main_menu_keyboard(),
+        )
+        await state.clear()
+        return
 
     status_message = await message.answer("⏳ Processing your answer...")
-
     try:
-        save_conversation_message(
-            user_id=user_id,
-            role="user",
-            content=message.text,
-            conversation_type="quiz",
-        )
-
+        await save_conversation_message(db, db_user, "user", message.text, "quiz")
+        history_db = await get_conversation_history(db, db_user, "quiz", 2)
+        history_openai = [
+            {"role": msg.role, "content": msg.content} for msg in history_db
+        ]
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a strict quiz assistant. "
-                    "You have already asked the user a quiz question. "
-                    "User has just submitted an answer. "
-                    "ONLY respond with True if the answer is correct, or False if it is incorrect. "
-                    "Do NOT provide any explanations, reasoning, or extra text. "
-                    "ONLY True or False."
-                ),
-            }
+            {"role": "system", "content": QUIZ_ANSWER_CHECK_PROMPT},
+            *history_openai,
         ]
 
-        conversation_history = get_conversation_history(
-            user_id=user_id, conversation_type="quiz", limit=2
-        )
-
-        for hist_msg in conversation_history:
-            messages.append({"role": hist_msg["role"], "content": hist_msg["content"]})
-
         response = await openai_client.get_conversation_response(messages=messages)
-
         if response:
-            save_conversation_message(
-                user_id=user_id,
-                conversation_type="quiz",
-                role="assistant",
-                content=response,
-            )
-
-            status = response.strip().lower() == "true"
-
-            correct_answers = data.get("correct_answers", 0)
-            total_questions = data.get("total_questions", 0)
-
-            correct_answers += 1 if status else 0
-            total_questions += 1
-
-            await state.update_data(
-                correct_answers=correct_answers, total_questions=total_questions
-            )
-
-            result_text = (
-                f"{'✅ Correct!' if status else '❌ Incorrect!'}\n"
-                f"Session progress: {correct_answers}/{total_questions} correct"
-            )
-
+            await save_conversation_message(db, db_user, "assistant", response, "quiz")
+            is_correct = response.strip().lower() == "true"
+            correct = data.get("correct_answers", 0) + (1 if is_correct else 0)
+            total = data.get("total_questions", 0) + 1
+            await state.update_data(correct_answers=correct, total_questions=total)
+            result_text = f"{'✅ Correct!' if is_correct else '❌ Incorrect!'}\nSession progress: {correct}/{total} correct"
             await status_message.edit_text(result_text)
             await message.answer(
                 "What would you like to do next?",
                 reply_markup=get_post_answer_keyboard(),
             )
-
     except Exception as e:
-        logger.error(f"Error while processing quiz answer: {e}")
-        await message.answer("⚠️ An error occurred while processing your answer.")
+        logger.error(f"Error processing quiz answer: {e}")
+        await status_message.edit_text(
+            "⚠️ An error occurred while processing your answer."
+        )
 
 
-@router.callback_query(F.data == "quiz:cancel")
-async def cancel_quiz_callback(callback: CallbackQuery, state: FSMContext) -> None:
-    """
-    Handles callback to cancel quiz.
-    """
+@router.callback_query(QuizCallbackFactory.filter(F.action == "cancel"))
+async def quiz_cancel_callback(
+    callback: CallbackQuery, state: FSMContext, db: AsyncSession, db_user: DbUser
+) -> None:
     await callback.answer()
-    user_id = callback.from_user.id if callback.from_user else 0
-
-    await finish_quiz_session(user_id=user_id, state=state)
-
+    await finish_quiz_session(db=db, user=db_user, state=state)
     await callback.message.answer(
         "❌ Quiz cancelled.\n\n👋 Welcome back to the main menu!",
         reply_markup=get_main_menu_keyboard(),
     )
 
 
-async def finish_quiz_session(user_id: int, state: FSMContext):
+async def finish_quiz_session(db: AsyncSession, user: DbUser, state: FSMContext):
     """
-    Handles q
-
-    Args:
-        user_id (int): user id
-        state (FSMContext): FSM context
+    Finishes the quiz session, saves the result, and clears the state.
     """
     data = await state.get_data()
     topic = data.get("topic")
-    correct_answers = data.get("correct_answers", 0)
-    total_questions = data.get("total_questions", 0)
+    correct = data.get("correct_answers", 0)
+    total = data.get("total_questions", 0)
 
-    if topic and total_questions > 0:
-        save_quiz_result(
-            user_id=user_id,
-            topic=topic,
-            correct_answers=correct_answers,
-            total_questions=total_questions,
-        )
+    if topic and total > 0:
+        await save_quiz_result(db, user, topic, correct, total)
+        await update_user_stats(db, user, "quizzes_completed")
 
     await state.clear()
-    clear_conversation_history(user_id=user_id, conversation_type="quiz")
+    await clear_conversation_history(db, user, "quiz")
