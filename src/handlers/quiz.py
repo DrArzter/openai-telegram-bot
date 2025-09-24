@@ -1,7 +1,6 @@
 # handlers/quiz.py
 from aiogram import Router, F
 from aiogram.filters import Command
-from aiogram.filters.callback_data import CallbackData
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,9 +25,9 @@ from database.crud import (
     update_user_stats,
 )
 from database.models import User as DbUser
+from callbacks.factories import QuizCallbackFactory
 from lexicon.prompts import get_quiz_question_prompt, QUIZ_ANSWER_CHECK_PROMPT
 from lexicon.topics import QUIZ_TOPICS
-from callbacks.factories import QuizCallbackFactory
 
 router = Router()
 logger = get_logger(__name__)
@@ -67,12 +66,14 @@ async def quiz_select_topic_callback(
 ) -> None:
     await callback.answer()
     await state.clear()
-    await clear_conversation_history(db, db_user, "quiz")
 
     topic_key = callback_data.topic_key
     if not topic_key or topic_key not in QUIZ_TOPICS:
         await callback.message.answer("⚠️ Invalid topic selected.")
         return
+
+    conversation_type = f"quiz_{topic_key}"
+    await clear_conversation_history(db, db_user, conversation_type)
 
     await state.update_data(topic=topic_key)
     await callback.message.answer(
@@ -113,17 +114,21 @@ async def quiz_continue_callback(
         return
 
     try:
-        history_db = await get_conversation_history(db, db_user, "quiz", 10)
+        conversation_type = f"quiz_{topic_key}"
+        history_db = await get_conversation_history(db, db_user, conversation_type, 10)
         history_openai = [
             {"role": msg.role, "content": msg.content} for msg in history_db
         ]
+
         system_prompt = get_quiz_question_prompt(QUIZ_TOPICS[topic_key]["name"])
         messages = [{"role": "system", "content": system_prompt}, *history_openai]
 
         response = await openai_client.get_conversation_response(messages=messages)
         if response:
             await status_message.edit_text(response, reply_markup=get_answer_keyboard())
-            await save_conversation_message(db, db_user, "assistant", response, "quiz")
+            await save_conversation_message(
+                db, db_user, "assistant", response, conversation_type
+            )
             await state.set_state(QuizStates.waiting_for_answer)
     except Exception as e:
         logger.error(f"Error getting response from OpenAI: {e}")
@@ -141,7 +146,8 @@ async def state_quiz_process_answer_handler(
         return
 
     data = await state.get_data()
-    if not data.get("topic"):
+    topic_key = data.get("topic")
+    if not topic_key:
         await message.answer(
             "⚠️ Session expired. Please start a new quiz.",
             reply_markup=get_main_menu_keyboard(),
@@ -151,8 +157,12 @@ async def state_quiz_process_answer_handler(
 
     status_message = await message.answer("⏳ Processing your answer...")
     try:
-        await save_conversation_message(db, db_user, "user", message.text, "quiz")
-        history_db = await get_conversation_history(db, db_user, "quiz", 2)
+        conversation_type = f"quiz_{topic_key}"
+        await save_conversation_message(
+            db, db_user, "user", message.text, conversation_type
+        )
+
+        history_db = await get_conversation_history(db, db_user, conversation_type, 2)
         history_openai = [
             {"role": msg.role, "content": msg.content} for msg in history_db
         ]
@@ -163,7 +173,9 @@ async def state_quiz_process_answer_handler(
 
         response = await openai_client.get_conversation_response(messages=messages)
         if response:
-            await save_conversation_message(db, db_user, "assistant", response, "quiz")
+            await save_conversation_message(
+                db, db_user, "assistant", response, conversation_type
+            )
             is_correct = response.strip().lower() == "true"
             correct = data.get("correct_answers", 0) + (1 if is_correct else 0)
             total = data.get("total_questions", 0) + 1
@@ -198,13 +210,16 @@ async def finish_quiz_session(db: AsyncSession, user: DbUser, state: FSMContext)
     Finishes the quiz session, saves the result, and clears the state.
     """
     data = await state.get_data()
-    topic = data.get("topic")
+    topic_key = data.get("topic")
     correct = data.get("correct_answers", 0)
     total = data.get("total_questions", 0)
 
-    if topic and total > 0:
-        await save_quiz_result(db, user, topic, correct, total)
+    if topic_key and total > 0:
+        await save_quiz_result(db, user, topic_key, correct, total)
         await update_user_stats(db, user, "quizzes_completed")
 
     await state.clear()
-    await clear_conversation_history(db, user, "quiz")
+
+    if topic_key:
+        conversation_type = f"quiz_{topic_key}"
+        await clear_conversation_history(db, user, conversation_type)

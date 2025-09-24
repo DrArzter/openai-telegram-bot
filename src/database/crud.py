@@ -20,7 +20,6 @@ async def get_or_create_user(
     db: AsyncSession, telegram_id: int, username: Optional[str] = None
 ) -> DBUser:
     """Get user by telegram_id or create new one."""
-    # Эта функция остается основной для мидлвэйра
     try:
         result = await db.execute(
             select(DBUser).where(DBUser.telegram_id == telegram_id)
@@ -44,7 +43,6 @@ async def update_user_stats(
     db: AsyncSession, user: DBUser, stat_field: str, increment: int = 1
 ) -> bool:
     """Update user statistics."""
-    # Уже обновлено, все отлично
     try:
         if hasattr(user, stat_field):
             current_value = getattr(user, stat_field, 0)
@@ -64,7 +62,6 @@ async def update_user_stats(
 
 async def get_user_stats(db: AsyncSession, telegram_id: int) -> Optional[DBUser]:
     """Get user statistics by telegram_id asynchronously."""
-    # Эта функция полезна для админки, оставляем как есть
     result = await db.execute(select(DBUser).where(DBUser.telegram_id == telegram_id))
     return result.scalar_one_or_none()
 
@@ -78,7 +75,6 @@ async def save_conversation_message(
     persona: Optional[str] = None,
 ) -> bool:
     """Save conversation message asynchronously."""
-    # Уже обновлено, все отлично
     try:
         conversation = Conversation(
             user_id=user.id,
@@ -101,7 +97,6 @@ async def get_conversation_history(
     db: AsyncSession, user: DBUser, conversation_type: str, limit: int = 10
 ) -> List[Conversation]:
     """Get conversation history asynchronously."""
-    # --- ИЗМЕНЕНИЕ: Принимаем user вместо telegram_id ---
     result = await db.execute(
         select(Conversation)
         .where(Conversation.user_id == user.id)
@@ -117,7 +112,6 @@ async def clear_conversation_history(
     db: AsyncSession, user: DBUser, conversation_type: str
 ) -> bool:
     """Clear conversation history asynchronously."""
-    # --- ИЗМЕНЕНИЕ: Принимаем user вместо telegram_id ---
     try:
         await db.execute(
             delete(Conversation).where(
@@ -141,7 +135,6 @@ async def save_quiz_result(
     total_questions: int,
 ) -> bool:
     """Save quiz result asynchronously."""
-    # --- ИЗМЕНЕНИЕ: Принимаем user и обновляем его статистику напрямую ---
     try:
         score_percentage = (
             (correct_answers / total_questions) * 100 if total_questions > 0 else 0
