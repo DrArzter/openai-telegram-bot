@@ -85,7 +85,7 @@ def get_answer_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text="❌ Cancel",
                 callback_data=QuizCallbackFactory(action="cancel").pack(),
-            )
+            ),
         ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)

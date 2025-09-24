@@ -2,6 +2,7 @@
 from aiogram import html
 from database.models import User as DbUser
 
+
 def get_welcome_message(user: DbUser | None) -> str:
     """Generates a personalized welcome message."""
     if user and user.username is not None:
@@ -22,6 +23,7 @@ def get_welcome_message(user: DbUser | None) -> str:
         )
     return text
 
+
 MAIN_MENU_TEXT = (
     "👋 Welcome back to the ChatGPT Bot!\n\n"
     "💬 How can I help you today?\n"
@@ -41,6 +43,7 @@ TALK_MENU_TEXT = (
     "Select a personality below:"
 )
 
+
 def get_now_chatting_text(personality_name: str) -> str:
     """Generates the text for starting a chat with a personality."""
     return (
@@ -49,10 +52,26 @@ def get_now_chatting_text(personality_name: str) -> str:
         f"💭 Type your message below:"
     )
 
-CHANGE_PERSONALITY_TEXT = "💬 <b>Choose New Personality</b>\n\nSelect who you'd like to talk with:"
+
+CHANGE_PERSONALITY_TEXT = (
+    "💬 <b>Choose New Personality</b>\n\nSelect who you'd like to talk with:"
+)
 
 END_CHAT_TEXT = (
     "👋 <b>Conversation Ended</b>\n\n"
     "Thank you for chatting! You can start a new conversation anytime.\n\n"
     "Welcome back to the main menu:"
 )
+
+# --- Translator Texts ---
+CHOOSE_LANGUAGE_TEXT = "Please choose the language you want to translate to:"
+WAITING_FOR_TEXT_TEXT = "Now, send me the text you want to translate."
+
+
+def get_translation_result_text(original: str, translation: str, language: str) -> str:
+    """Formats the translation result message."""
+    return (
+        f"🌍 <b>Translation to {language}</b>\n\n"
+        f"<b>Original:</b>\n<code>{html.quote(original)}</code>\n\n"
+        f"<b>Translation:</b>\n<code>{html.quote(translation)}</code>"
+    )

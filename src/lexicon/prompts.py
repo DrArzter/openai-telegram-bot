@@ -1,10 +1,15 @@
 # lexicon/prompts.py
 
-GPT_SYSTEM_PROMPT = "You are a helpful AI assistant. Provide clear, accurate, and helpful responses."
+GPT_SYSTEM_PROMPT = (
+    "You are a helpful AI assistant. Provide clear, accurate, and helpful responses."
+)
 
-RANDOM_FACT_PROMPT = "Tell me a random, interesting, short fact that hasn't been said before."
+RANDOM_FACT_PROMPT = (
+    "Tell me a random, interesting, short fact that hasn't been said before."
+)
 
 IMAGE_DESCRIPTION_PROMPT = "Create a short and creative description for this image."
+
 
 def get_quiz_question_prompt(topic_name: str) -> str:
     """Returns the system prompt for generating a new quiz question."""
@@ -16,6 +21,7 @@ def get_quiz_question_prompt(topic_name: str) -> str:
         "Do not ask if you should ask another question. "
         "The question should be clear and concise."
     )
+
 
 QUIZ_ANSWER_CHECK_PROMPT = (
     "You are a strict quiz assistant. "
@@ -41,3 +47,8 @@ PERSONALITY_NAMES = {
     "leonardo": "🎨 Leonardo da Vinci",
     "socrates": "🏛️ Socrates",
 }
+
+
+def get_translation_prompt(text: str, target_language: str) -> str:
+    """Returns the user prompt for translation."""
+    return f"Translate the following text to {target_language}:\n\n{text}"

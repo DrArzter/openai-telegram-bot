@@ -7,6 +7,7 @@ from callbacks.factories import (
     QuizCallbackFactory,
     ImageCallbackFactory,
     HelpCallbackFactory,
+    TranslateCallbackFactory,
 )
 
 
@@ -33,6 +34,12 @@ def get_main_menu_keyboard():
                 text="🎯 Quiz",
                 callback_data=QuizCallbackFactory(action="start").pack(),
             ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="🌐 Translate ",
+                callback_data=TranslateCallbackFactory(action="start").pack(),
+            )
         ],
         [
             InlineKeyboardButton(
