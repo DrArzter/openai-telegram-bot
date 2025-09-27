@@ -36,3 +36,6 @@ class QuizCallbackFactory(CallbackData, prefix="quiz"):
 
 class RandomCallbackFactory(CallbackData, prefix="random"):
     action: str
+    
+class VocabularyCallbackFactory(CallbackData, prefix="vocabulary"):
+    action: str

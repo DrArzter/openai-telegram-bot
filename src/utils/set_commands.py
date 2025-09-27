@@ -18,6 +18,7 @@ async def set_commands(bot: Bot) -> None:
         BotCommand(command="/talk", description="💬 Talk to Famous Personalities"),
         BotCommand(command="/image", description="📸 Generate a caption for an image"),
         BotCommand(command="/translate", description="🌐 Translate text"),
+        BotCommand(command="/vocabulary", description="📚 Learn vocabulary"),
         BotCommand(command="/quiz", description="🎯 Take a Quiz"),
     ]
 

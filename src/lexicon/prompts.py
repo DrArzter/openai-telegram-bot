@@ -52,3 +52,20 @@ PERSONALITY_NAMES = {
 def get_translation_prompt(text: str, target_language: str) -> str:
     """Returns the user prompt for translation."""
     return f"Translate the following text to {target_language}:\n\n{text}"
+
+
+GET_NEW_WORD_PROMPT = (
+    "Provide one new, moderately common English word for a language learner. "
+    "Your response MUST be in the following format, with each part separated by a '|' character:\n"
+    "WORD | TRANSLATION (in Russian) | USAGE EXAMPLE (a simple sentence in English)"
+)
+
+
+def get_word_validation_prompt(word: str, user_translation: str) -> str:
+    """Returns the prompt for validating a user's translation."""
+    return (
+        f"The user is being tested on the English word '{word}'. "
+        f"They provided the following Russian translation: '{user_translation}'. "
+        "Is this translation a correct or very close synonym? "
+        "Respond ONLY with 'True' or 'False'. Do not add any other text or punctuation."
+    )

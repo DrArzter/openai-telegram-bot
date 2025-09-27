@@ -8,6 +8,7 @@ from callbacks.factories import (
     ImageCallbackFactory,
     HelpCallbackFactory,
     TranslateCallbackFactory,
+    VocabularyCallbackFactory,
 )
 
 
@@ -39,7 +40,11 @@ def get_main_menu_keyboard():
             InlineKeyboardButton(
                 text="🌐 Translate ",
                 callback_data=TranslateCallbackFactory(action="start").pack(),
-            )
+            ),
+            InlineKeyboardButton(
+                text="📚 Vocabulary Trainer",
+                callback_data=VocabularyCallbackFactory(action="start").pack(),
+            ),
         ],
         [
             InlineKeyboardButton(

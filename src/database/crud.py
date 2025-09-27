@@ -176,10 +176,9 @@ async def get_quiz_stats(
         }
 
     total_quizzes = len(results)
-    scores = [float(r.score_percentage) for r in results]  # type: ignore
+    scores = [float(r.score_percentage) for r in results]
     average_score = round(sum(scores) / len(scores), 2)
     best_score = round(max(scores), 2)
-
     topics_played = list({r.topic for r in results})
 
     return {
@@ -207,12 +206,8 @@ async def save_translation(
             source_language=source_language,
             target_language=target_language,
         )
-
         db.add(translation)
-
-        user.translations_made += 1  # type: ignore
-        user.last_activity = datetime.now(timezone.utc)  # type: ignore
-
+        await update_user_stats(db, user, "translations_made")
         await db.commit()
         await db.refresh(translation)
         return True
@@ -234,14 +229,12 @@ async def add_vocabulary_word(
                 VocabularyWord.language == language,
             )
         )
-        existing = result.scalar_one_or_none()
-        if existing:
+        if result.scalar_one_or_none():
             return False
 
         vocab_word = VocabularyWord(
             user_id=user.id, word=word, translation=translation, language=language
         )
-
         db.add(vocab_word)
         await db.commit()
         await db.refresh(vocab_word)
@@ -252,18 +245,40 @@ async def add_vocabulary_word(
         return False
 
 
+async def update_vocabulary_word_stats(
+    db: AsyncSession, word_id: int, was_correct: bool
+) -> Optional[VocabularyWord]:
+    """Updates the practice statistics for a vocabulary word."""
+    try:
+        result = await db.execute(
+            select(VocabularyWord).where(VocabularyWord.id == word_id)
+        )
+        word = result.scalar_one_or_none()
+        if not word:
+            return None
+
+        word.times_practiced += 1
+        word.last_practiced = datetime.now(timezone.utc)
+        if was_correct:
+            word.times_correct += 1
+
+        await db.commit()
+        await db.refresh(word)
+        return word
+    except Exception as e:
+        logger.error(f"Error updating vocabulary word stats: {e}")
+        await db.rollback()
+        return None
+
+
 async def get_user_vocabulary(
-    db: AsyncSession, telegram_id: int, language: Optional[str] = None
+    db: AsyncSession, user: DBUser, language: Optional[str] = None
 ) -> List[VocabularyWord]:
     """Get user's vocabulary words asynchronously."""
-    user = await get_or_create_user(db, telegram_id)
-
     stmt = select(VocabularyWord).where(VocabularyWord.user_id == user.id)
     if language:
         stmt = stmt.where(VocabularyWord.language == language)
 
     stmt = stmt.order_by(VocabularyWord.learned_at.desc())
-
     result = await db.execute(stmt)
-    words = list(result.scalars().all())
-    return words
+    return list(result.scalars().all())
